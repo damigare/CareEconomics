@@ -1,0 +1,648 @@
+#------------------------------ ECONOMIA DEL CUIDADO ------------------------------
+#                             Universidad de Pamplona
+#                  Facultad de ciencias economicas y empresariales
+#                              Programa de Economia
+
+#-------------------------------- TRABAJO DE GRADO --------------------------------
+# Evolucion de la economia del cuidado en el marco del ciclo vital familiar:
+# Un analisis regional para Colombia 2012-2013 y 2016-2017
+
+#--------------------------------- Presentado por: --------------------------------
+# 1. Darwin Miguel Galvis Reyes
+# 2. Laura Sofia Alvarez Araque
+#----------------------------------------------------------------------------------
+
+# Definir directorio de trabajo
+dir <- 'G:/Trabajo de grado/Datos/ENUT 2012-13/Base de datos/Capítulos'
+setwd(dir)
+
+# Cargar librerias
+pacman::p_load('tidyverse', 'haven')
+
+# Leer y unir capitulos de la ENUT
+
+df    <- read_dta("CAPITULO D.dta")
+df2   <- read_dta("CAPITULO B.dta")
+
+df3   <- full_join(df, df2, by = 'DIRECTORIO')
+
+keep  <- c('DIRECTORIO','SECUENCIA_P','ORDEN','P6040','P6020','P425','REGION','clase','FEX_C')
+df3   <- df3[, keep]
+
+df4   <- read_stata('CAPITULO E.dta')
+keep2 <- c('DIRECTORIO','SECUENCIA_P','ORDEN','P1169S1','P1169S2','P1169S3','P1169S4','P1169S5','P1169S6','P1169S7','P1169S8')
+df4   <- df4[, keep2]
+
+df5   <- full_join(df3, df4, by = c('DIRECTORIO','SECUENCIA_P','ORDEN'))
+
+df6   <- read_stata('CAPITULO I.dta')
+
+keep3 <- c(
+  'DIRECTORIO','SECUENCIA_P','ORDEN', 'P1143S1A1','P1143S1A2','P1143S2A1','P1143S2A2','P1143S3A1','P1143S3A2','P1142S1A1',
+  'P1142S1A2','P1142S2A1','P1142S2A2','P1142S4A1','P1142S4A2','P1136S1A1','P1136S1A2','P1136S2A1','P1136S2A2','P1136S3A1',
+  'P1136S3A2','P1128S1A1','P1128S1A2','P1134S1A1','P1134S2A1','P1134S3A1','P1134S1A2','P1134S1A3','P1134S2A2','P1134S2A3',
+  'P1134S3A2','P1134S3A3','P1132S1A1','P1132S1A2','P1132S1A3','P1132S2A1','P1132S2A2','P1132S2A3','P1132S3A1','P1132S3A2',
+  'P1132S3A3','P1133S1A1','P1133S1A2','P1133S1A3','P1133S2A1','P1133S2A2','P1133S2A3','P1133S3A1','P1133S3A2','P1133S3A3',
+  'P1135S1A1','P1135S1A2','P1135S1A3','P1135S2A1','P1135S2A2','P1135S2A3','P1135S3A1','P1135S3A2','P1135S3A3','P1131S1A1',
+  'P1131S1A2','P1131S1A3','P1131S2A1','P1131S2A2','P1131S2A3','P1131S3A1','P1131S3A2','P1131S3A3','P1137S1A1','P1137S1A2',
+  'P1137S2A1','P1137S2A2','P1137S3A1','P1137S3A2','P1128S4A1','P1128S4A2','P1128S5A1','P1128S5A2','P1128S7A1','P1128S7A2',
+  'P1127S1A1','P1127S1A2','P1127S2A1','P1127S2A2','P1127S3A1','P1127S3A2'
+  )
+
+df6   <- df6[, keep3]
+
+enut  <- full_join(df5, df6, by = c('DIRECTORIO','SECUENCIA_P','ORDEN'))
+
+# Crear identificador de hogar
+
+enut <- enut %>% 
+  group_by(DIRECTORIO, SECUENCIA_P) %>%
+  mutate(id_hogar = cur_group_id())
+
+enut <- enut %>% relocate(id_hogar)  
+
+# Elimirnar objetos del ambiente
+
+rm(df, df2, df3, df4, df5, df6, keep, keep2, keep3)
+
+enut[, 2:3] <- NULL # borrar directorio y secuencia
+
+# Crear variable PET (población en edad de trabajar)
+
+enut <- enut %>% 
+  mutate(pet = case_when(
+    P6040 >= 12 & clase == 1 ~ 1,
+    P6040 >= 10 & clase == 2 ~ 1)
+    )
+
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxx ACTIVIDADES DE LA ECONOMIA DEL CUIDADO xxxxxxxxxxxxxxxxxxxxx
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# -----------------------------------------------------------------------------#
+# --------------------------1. CUIDADO INDIRECTO-------------------------------#
+# -----------------------------------------------------------------------------#
+
+# Son principalmente las labores domesticas. Ademas de las tres actividades 
+# de la funcionalidad "Suministro de Alimentos", incluimos las siguientes 
+# actividades:
+
+# Paso 1. Convertir la variable de horas a segundos 
+
+# HORAS
+enut$h_P1143S1A1 <- enut$P1143S1A1 * 3600  # preparar alimentos
+enut$h_P1143S2A1 <- enut$P1143S2A1 * 3600  # lavar platos
+enut$h_P1143S3A1 <- enut$P1143S3A1 * 3600  # llevar alimentos
+enut$h_P1142S1A1 <- enut$P1142S1A1 * 3600  # lavar, planchar
+enut$h_P1142S2A1 <- enut$P1142S2A1 * 3600  # reparar ropa
+enut$h_P1142S4A1 <- enut$P1142S4A1 * 3600  # recoger ropa
+enut$h_P1136S1A1 <- enut$P1136S1A1 * 3600  # limpiar la vivienda
+enut$h_P1136S3A1 <- enut$P1136S3A1 * 3600  # cuidar el jardin
+enut$h_P1136S2A1 <- enut$P1136S2A1 * 3600  # cuidar mascotas
+enut$h_P1128S1A1 <- enut$P1128S1A1 * 3600  # oficios otros hogares
+
+# Paso 2. Convertir la variable de minutos a segundos
+
+# MINUTOS
+enut$m_P1143S1A2 <- enut$P1143S1A2 * 60  # Preparar alimentos
+enut$m_P1143S2A2 <- enut$P1143S2A2 * 60  # lavar los platos
+enut$m_P1143S3A2 <- enut$P1143S3A2 * 60  # llevar alimentos
+enut$m_P1142S1A2 <- enut$P1142S1A2 * 60  # lavar, planchar
+enut$m_P1142S2A2 <- enut$P1142S2A2 * 60  # reparar ropa
+enut$m_P1142S4A2 <- enut$P1142S4A2 * 60  # recoger ropa
+enut$m_P1136S1A2 <- enut$P1136S1A2 * 60  # limpiar la vivienda
+enut$m_P1136S3A2 <- enut$P1136S3A2 * 60  # cuidar el jardin
+enut$m_P1136S2A2 <- enut$P1136S2A2 * 60  # cuidar mascotas
+enut$m_P1128S1A2 <- enut$P1128S1A2 * 60  # oficios otros hogares
+
+#-------------------------
+# total cuidado indirecto
+#-------------------------
+
+# Paso 3. Sumar horas (en segundos) y minutos (en segundos) de todas las actividades
+
+indirecto <- c(
+  'h_P1143S1A1','h_P1143S2A1','h_P1143S3A1','h_P1142S1A1',
+  'h_P1142S2A1','h_P1142S4A1','h_P1136S1A1','h_P1136S3A1',
+  'h_P1136S2A1','h_P1128S1A1','m_P1143S1A2','m_P1143S2A2',
+  'm_P1143S3A2','m_P1142S1A2','m_P1142S2A2','m_P1142S4A2',
+  'm_P1136S1A2','m_P1136S3A2','m_P1136S2A2','m_P1128S1A2'
+  )
+
+enut$cuidado_indirecto <- rowSums(enut[, indirecto], na.rm = T) 
+# tambien se pudo haber usado la posición de las columnas (101:120) para hacer la suma
+
+enut %>% 
+  filter(pet == 1) %>% 
+  group_by(P6020) %>% 
+  summarise(mean_pond = weighted.mean(cuidado_indirecto, w = FEX_C))
+
+# -----------------------------------------------------------------------------#
+# ---------------------------2. CUIDADO DIRECTO--------------------------------#
+# -----------------------------------------------------------------------------#
+
+# CREAR VARIABLE DISCAPACIDAD
+
+enut <- enut %>% 
+  mutate(discapacidad = if_else(P1169S1 == 1 | P1169S2 == 1 | 
+                                P1169S3 == 1 | P1169S4 == 1 | 
+                                P1169S5 == 1 | P1169S6 == 1 | 
+                                P1169S7 == 1 | P1169S8 == 1, 1, 0))
+
+#-------------------------------------------------
+# a) Actividad:  Bañar, vestir o ayudar a alguien
+#-------------------------------------------------
+
+vestir <- c('P1134S1A1','P1134S2A1','P1134S3A1')
+
+for (i in (vestir)) {
+  enut[[i]][is.na(enut[[i]])] <- 0    # No utilizar, solo es ejemplo
+}
+
+# crear variables vestir
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(vestir_1 = P6040[match(P1134S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(vestir_2 = P6040[match(P1134S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(vestir_3 = P6040[match(P1134S3A1, ORDEN)]) %>%
+  ungroup
+
+# crear variables disable
+
+enut <- enut %>% 
+  group_by(id_hogar) %>% 
+  mutate(disabled1 = discapacidad[match(P1134S1A1, ORDEN)]) %>% 
+  ungroup
+
+enut <- enut %>% 
+  group_by(id_hogar) %>% 
+  mutate(disabled2 = discapacidad[match(P1134S2A1, ORDEN)]) %>% 
+  ungroup
+
+enut <- enut %>% 
+  group_by(id_hogar) %>% 
+  mutate(disabled3 = discapacidad[match(P1134S3A1, ORDEN)]) %>% 
+  ungroup
+
+# crear variables index
+
+enut <- enut %>% 
+  mutate(index1 = if_else(vestir_1  <= 12, 1,
+                  if_else(vestir_1  >= 60, 2,
+                  if_else(disabled1 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index2 = if_else(vestir_2  <= 12, 1,
+                  if_else(vestir_2  >= 60, 2,
+                  if_else(disabled2 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index3 = if_else(vestir_3  <= 12, 1,
+                  if_else(vestir_3  >= 60, 2,
+                  if_else(disabled3 ==  1, 3, 4))))
+
+# Horas en bañar o vestir
+# Menores
+
+enut$hvmenores1 <- ifelse(enut$index1 == 1, enut$P1134S1A2 * 3600, NA)
+enut$hvmenores2 <- ifelse(enut$index2 == 1, enut$P1134S2A2 * 3600, NA)
+enut$hvmenores3 <- ifelse(enut$index3 == 1, enut$P1134S3A2 * 3600, NA)
+
+# Mayores + Discapacitados
+
+enut$hvmayores1 <- ifelse(enut$index1 == 2 | enut$index1 == 3, enut$P1134S1A2 * 3600, NA)
+enut$hvmayores2 <- ifelse(enut$index2 == 2 | enut$index2 == 3, enut$P1134S2A2 * 3600, NA)
+enut$hvmayores3 <- ifelse(enut$index3 == 2 | enut$index3 == 3, enut$P1134S3A2 * 3600, NA)
+
+# Minutos en bañar o vestir
+# Menores
+
+enut$mvmenores1 <- ifelse(enut$index1 == 1, enut$P1134S1A3 * 60, NA)
+enut$mvmenores2 <- ifelse(enut$index2 == 1, enut$P1134S2A3 * 60, NA)
+enut$mvmenores3 <- ifelse(enut$index3 == 1, enut$P1134S3A3 * 60, NA)
+
+# Mayores + Discapacitados
+
+enut$mvmayores1 <- ifelse(enut$index1 == 2 | enut$index1 == 3, enut$P1134S1A3 * 60, NA)
+enut$mvmayores2 <- ifelse(enut$index2 == 2 | enut$index2 == 3, enut$P1134S2A3 * 60, NA)
+enut$mvmayores3 <- ifelse(enut$index3 == 2 | enut$index3 == 3, enut$P1134S3A3 * 60, NA)
+
+#-----------------------------------------
+# b) Actividad: Ayuda en Tareas escolares
+#-----------------------------------------
+
+escolar <- c('P1132S1A1','P1132S2A1','P1132S3A1')
+
+# Crear variables escolar
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(escolar1 = P6040[match(P1132S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(escolar2 = P6040[match(P1132S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(escolar3 = P6040[match(P1132S3A1, ORDEN)]) %>%
+  ungroup
+
+# crear variables index (4, 5, 6)
+
+enut <- enut %>% 
+  mutate(index4 = if_else(escolar1 <= 12, 1, 4))
+
+enut <- enut %>% 
+  mutate(index5 = if_else(escolar2 <= 12, 1, 4))
+
+enut <- enut %>% 
+  mutate(index6 = if_else(escolar3 <= 12, 1, 4))
+
+# Horas estudio
+# Menores
+
+enut$hemenores1 <- ifelse(enut$index4 == 1, enut$P1132S1A2 * 3600, NA)
+enut$hemenores2 <- ifelse(enut$index5 == 1, enut$P1132S2A2 * 3600, NA)
+enut$hemenores3 <- ifelse(enut$index6 == 1, enut$P1132S3A2 * 3600, NA)
+
+# Minutos estudio
+# Menores
+
+enut$memenores1 <- ifelse(enut$index4 == 1, enut$P1132S1A3 * 60, NA)
+enut$memenores2 <- ifelse(enut$index5 == 1, enut$P1132S2A3 * 60, NA)
+enut$memenores3 <- ifelse(enut$index6 == 1, enut$P1132S3A3 * 60, NA)
+
+#-------------------------------------------------------------------------
+# c) Actividad: Ayuda en Suministro medicamentos, realiza terapias, otros
+#-------------------------------------------------------------------------
+
+medicamentos <- c('P1133S1A1','P1133S2A1','P1133S3A1')
+
+# Crear variables medicamentos
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(medicamentos1 = P6040[match(P1133S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(medicamentos2 = P6040[match(P1133S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(medicamentos3 = P6040[match(P1133S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables disabled (4, 5, 6)
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled4 = discapacidad[match(P1133S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled5 = discapacidad[match(P1133S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled6 = discapacidad[match(P1133S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables index (7, 8, 9)
+
+enut <- enut %>% 
+  mutate(index7 = ifelse(medicamentos1 <= 12, 1,
+                  ifelse(medicamentos1 >= 60, 2,
+                  ifelse(disabled4     ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index8 = ifelse(medicamentos2 <= 12, 1,
+                  ifelse(medicamentos2 >= 60, 2,
+                  ifelse(disabled5     ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index9 = ifelse(medicamentos3 <= 12, 1,
+                  ifelse(medicamentos3 >= 60, 2,
+                  ifelse(disabled6     ==  1, 3, 4))))
+
+# Horas en suministro de medicamentos
+# Menores
+
+enut$hmmenores1 <- ifelse(enut$index7 == 1, enut$P1133S1A2 * 3600, NA)
+enut$hmmenores2 <- ifelse(enut$index8 == 1, enut$P1133S2A2 * 3600, NA)
+enut$hmmenores3 <- ifelse(enut$index9 == 1, enut$P1133S3A2 * 3600, NA)
+
+# Mayores + Discapacitados
+
+enut$hmmayores1 <- ifelse(enut$index7 == 2 | enut$index7 == 3, enut$P1133S1A2 * 3600, NA)
+enut$hmmayores2 <- ifelse(enut$index8 == 2 | enut$index8 == 3, enut$P1133S2A2 * 3600, NA)
+enut$hmmayores3 <- ifelse(enut$index9 == 2 | enut$index9 == 3, enut$P1133S3A2 * 3600, NA)
+
+# Minutos en suministro de medicamentos
+# Menores
+
+enut$mmmenores1 <- ifelse(enut$index7 == 1, enut$P1133S1A3 * 60, NA)
+enut$mmmenores2 <- ifelse(enut$index8 == 1, enut$P1133S2A3 * 60, NA)
+enut$mmmenores3 <- ifelse(enut$index9 == 1, enut$P1133S3A3 * 60, NA)
+
+# Mayores + Discapacitados
+
+enut$mmmayores1 <- ifelse(enut$index7 == 2 | enut$index7 == 3, enut$P1133S1A3 * 60, NA)
+enut$mmmayores2 <- ifelse(enut$index8 == 2 | enut$index8 == 3, enut$P1133S2A3 * 60, NA)
+enut$mmmayores3 <- ifelse(enut$index9 == 2 | enut$index9 == 3, enut$P1133S3A3 * 60, NA)
+
+#------------------------
+# d) Actividad: Alimento
+#------------------------
+
+alimento <- c('P1135S1A1','P1135S2A1','P1135S3A1')
+
+# Crear variables alimento
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(alimento1 = P6040[match(P1135S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(alimento2 = P6040[match(P1135S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(alimento3 = P6040[match(P1135S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables disabled (7, 8, 9)
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled7 = discapacidad[match(P1135S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled8 = discapacidad[match(P1135S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled9 = discapacidad[match(P1135S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables index (10, 11, 12)
+
+enut <- enut %>% 
+  mutate(index10 = ifelse(alimento1 <= 12, 1,
+                   ifelse(alimento1 >= 60, 2,
+                   ifelse(disabled7 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index11 = ifelse(alimento2 <= 12, 1,
+                   ifelse(alimento2 >= 60, 2,
+                   ifelse(disabled8 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index12 = ifelse(alimento3 <= 12, 1,
+                   ifelse(alimento3 >= 60, 2,
+                   ifelse(disabled9 ==  1, 3, 4))))
+
+# Horas en alimentacion
+# Menores
+
+enut$hamenores1 <- ifelse(enut$index10 == 1, enut$P1135S1A2 * 3600, NA)
+enut$hamenores2 <- ifelse(enut$index11 == 1, enut$P1135S2A2 * 3600, NA)
+enut$hamenores3 <- ifelse(enut$index12 == 1, enut$P1135S3A2 * 3600, NA)
+
+# Mayores + Discapacitados
+
+enut$hamayores1 <- ifelse(enut$index10 == 2 | enut$index10 == 3, enut$P1135S1A2 * 3600, NA)
+enut$hamayores2 <- ifelse(enut$index11 == 2 | enut$index11 == 3, enut$P1135S2A2 * 3600, NA)
+enut$hamayores3 <- ifelse(enut$index12 == 2 | enut$index12 == 3, enut$P1135S3A2 * 3600, NA)
+
+# Minutos en alimentacion
+# Menores
+
+enut$mamenores1 <- ifelse(enut$index10 == 1, enut$P1135S1A3 * 60, NA)
+enut$mamenores2 <- ifelse(enut$index11 == 1, enut$P1135S2A3 * 60, NA)
+enut$mamenores3 <- ifelse(enut$index12 == 1, enut$P1135S3A3 * 60, NA)
+
+# Mayores + Discapacitados
+
+enut$mamayores1 <- ifelse(enut$index10 == 2 | enut$index10 == 3, enut$P1135S1A3 * 60, NA)
+enut$mamayores2 <- ifelse(enut$index11 == 2 | enut$index11 == 3, enut$P1135S2A3 * 60, NA)
+enut$mamayores3 <- ifelse(enut$index12 == 2 | enut$index12 == 3, enut$P1135S3A3 * 60, NA)
+
+#-----------------------------------------
+# e) Actividad: Acompañar a citas medicas
+#-----------------------------------------
+
+citas <- c('P1131S1A1','P1131S2A1','P1131S3A1')
+
+# Crear variables cita
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(cita1 = P6040[match(P1131S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(cita2 = P6040[match(P1131S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(cita3 = P6040[match(P1131S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables disabled (10, 11, 12)
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled10 = discapacidad[match(P1131S1A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled11 = discapacidad[match(P1131S2A1, ORDEN)]) %>%
+  ungroup
+
+enut <- enut %>%                                  
+  group_by(id_hogar) %>%
+  mutate(disabled12 = discapacidad[match(P1131S3A1, ORDEN)]) %>%
+  ungroup
+
+# Crear variables index (13, 14, 15)
+
+enut <- enut %>% 
+  mutate(index13 = ifelse(cita1      <= 12, 1,
+                   ifelse(cita1      >= 60, 2,
+                   ifelse(disabled10 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index14 = ifelse(cita2      <= 12, 1,
+                   ifelse(cita2      >= 60, 2,
+                   ifelse(disabled11 ==  1, 3, 4))))
+
+enut <- enut %>% 
+  mutate(index15 = ifelse(cita3      <= 12, 1,
+                   ifelse(cita3      >= 60, 2,
+                   ifelse(disabled12 ==  1, 3, 4))))
+
+# Horas en acompañar a citas medicas
+# Menores
+
+enut$hcmenores1 <- ifelse(enut$index13 == 1, enut$P1131S1A2 * 3600, NA)
+enut$hcmenores2 <- ifelse(enut$index14 == 1, enut$P1131S2A2 * 3600, NA)
+enut$hcmenores3 <- ifelse(enut$index15 == 1, enut$P1131S3A2 * 3600, NA)
+
+# Mayores + Discapacitados
+
+enut$hcmayores1 <- ifelse(enut$index13 == 2 | enut$index13 == 3, enut$P1131S1A2 * 3600, NA)
+enut$hcmayores2 <- ifelse(enut$index14 == 2 | enut$index14 == 3, enut$P1131S2A2 * 3600, NA)
+enut$hcmayores3 <- ifelse(enut$index15 == 2 | enut$index15 == 3, enut$P1131S3A2 * 3600, NA)
+
+# Minutos en acompañar a citas medicas
+# Menores
+
+enut$mcmenores1 <- ifelse(enut$index13 == 1, enut$P1131S1A3 * 60, NA)
+enut$mcmenores2 <- ifelse(enut$index14 == 1, enut$P1131S2A3 * 60, NA)
+enut$mcmenores3 <- ifelse(enut$index15 == 1, enut$P1131S3A3 * 60, NA)
+
+# Mayores + Discapacitados
+
+enut$mcmayores1 <- ifelse(enut$index13 == 2 | enut$index13 == 3, enut$P1131S1A3 * 60, NA)
+enut$mcmayores2 <- ifelse(enut$index14 == 2 | enut$index14 == 3, enut$P1131S2A3 * 60, NA)
+enut$mcmayores3 <- ifelse(enut$index15 == 2 | enut$index15 == 3, enut$P1131S3A3 * 60, NA)
+
+# Calcular totales de cuidado directo para menores y mayores
+
+#--------------------
+#	Cuidado a Menores
+#--------------------
+
+# Paso 1. Crear totales de las variables previamente procesadas (Horas + Minutos)
+
+menores <- c('hvmenores1','hvmenores2','hvmenores3','mvmenores1','mvmenores2',
+             'mvmenores3','hemenores1','hemenores2','hemenores3','memenores1',
+             'memenores2','memenores3','hmmenores1','hmmenores2','hmmenores3',
+             'mmmenores1','mmmenores2','mmmenores3','hamenores1','hamenores2',
+             'hamenores3','mamenores1','mamenores2','mamenores3','hcmenores1',
+             'hcmenores2','hcmenores3','mcmenores1','mcmenores2','mcmenores3')
+
+enut$cdmenores <- rowSums(enut[, menores], na.rm = T)
+
+# Paso 2. Convertir nuevas variables de cuidado a menores de horas a segundos 
+
+enut$h_P1137S1A1 <- enut$P1137S1A1 * 3600       # Jugar en el parque
+enut$h_P1137S2A1 <- enut$P1137S2A1 * 3600       # Contar o leer cuentos
+enut$h_P1137S3A1 <- enut$P1137S3A1 * 3600       # Llevar al parque
+enut$h_P1128S4A1 <- enut$P1128S4A1 * 3600       # Cuidar a menores de 12 años
+
+# Paso 3. Convertir nuevas variables de cuidado a menores de minutos a segundos
+
+enut$m_P1137S1A1 <- enut$P1137S1A2 * 60         # Jugar en el parque
+enut$m_P1137S2A2 <- enut$P1137S2A2 * 60         # Contar o leer cuentos
+enut$m_P1137S3A2 <- enut$P1137S3A2 * 60         # Llevar al parque
+enut$m_P1128S4A2 <- enut$P1128S4A2 * 60         # Cuidar a menores de 12 años
+
+# Paso 4. Sumar horas (en segundos) y minutos (en segundos) de todas las actividades
+
+enut$cuidado_menores <- rowSums(enut[, c(219:227)], na.rm = T)
+
+#--------------------
+# Cuidado a Mayores
+#--------------------
+
+# Paso 1: Crear totales de las variables previamente procesadas (Horas+Minutos)
+
+mayores <- c(
+  'hvmayores1','hvmayores2','hvmayores3','mvmayores1',
+  'mvmayores2','mvmayores3','hmmayores1','hmmayores2',
+  'hmmayores3','mmmayores1','mmmayores2','mmmayores3',
+  'hamayores1','hamayores2','hamayores3','mamayores1',
+  'mamayores2','mamayores3','hcmayores1','hcmayores2',
+  'hcmayores3','mcmayores1','mcmayores2','mcmayores3'
+  )
+
+enut$cdmayores <- rowSums(enut[, mayores],na.rm = T)
+
+# Paso 2. Convertir nuevas variables de cuidado a mayores de horas a segundos
+
+enut$h_P1128S5A1 <- enut$P1128S5A1 * 3600   # Cuidar a mayores de 60 años
+enut$h_P1128S7A1 <- enut$P1128S7A1 * 3600   # Cuidar a personas en condicion de discapacidad
+
+# Paso 3. Convertir nuevas variables de cuidado a mayores de minutos a segundos
+
+enut$m_P1128S5A2 <- enut$P1128S5A2 * 60     # Cuidar a mayores de 60 años
+enut$m_P1128S7A2 <- enut$P1128S7A2 * 60     # Cuidar a personas en condicion de discapacidad
+
+# Paso 4. Sumar horas (en segundos) y minutos (en segundos) de todas las actividades
+
+enut$cuidado_mayores <- rowSums(enut[, 229:233], na.rm = T)
+
+#-----------------------
+# Total Cuidado Directo
+#-----------------------
+
+enut$cuidado_directo <- rowSums(enut[, c('cuidado_menores', 'cuidado_mayores')], na.rm = T)
+
+enut %>% 
+  filter(pet == 1) %>% 
+  group_by(P6020) %>% 
+  summarise(mean_pond = weighted.mean(cuidado_directo, w = FEX_C))
+
+#------------------------------------------------------------------------------#
+#--------------------3. OTRAS ACTIVIDADES NO REMUNERADAS-----------------------#
+#------------------------------------------------------------------------------#
+
+# HORAS
+enut$h_P1127S1A1 <- enut$P1127S1A1 * 3600   # Voluntariado
+enut$h_P1127S2A1 <- enut$P1127S2A1 * 3600   # Voluntariado 2
+enut$h_P1127S3A1 <- enut$P1127S3A1 * 3600   # Otros
+
+# MINUTOS
+enut$m_P1127S1A2 <- enut$P1127S1A2 * 60   # Voluntariado
+enut$m_P1127S2A2 <- enut$P1127S2A2 * 60   # Voluntariado 2
+enut$m_P1127S3A2 <- enut$P1127S3A2 * 60   # Otros
+
+#----------------------------------------
+# Total Otros Cuidados - Voluntariado
+#----------------------------------------
+
+enut$cuidado_otros <- rowSums(enut[, 236:241], na.rm = T) # 370:375 es el numero de las columnas donde estan las variables creadas
+
+enut %>% 
+  filter(pet == 1) %>% 
+  group_by(P6020) %>% 
+  summarise(weighted.mean(cuidado_otros, w = FEX_C))
+
+# Crear vector con las variables que deseo dejar en el df enut
+
+cuidados <- c(
+  'id_hogar','ORDEN','P6040','P6020','P425','REGION',
+  'clase','FEX_C','pet','cuidado_indirecto','discapacidad',
+  'cuidado_menores','cuidado_mayores','cuidado_directo',
+  'cuidado_otros'
+  )
+
+enut <- enut[, cuidados]
+
